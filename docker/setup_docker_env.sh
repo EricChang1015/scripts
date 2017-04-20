@@ -1,4 +1,4 @@
-# !/bin/bash
+#!/bin/bash
 # Purpose: Create a clean OS for docker.
 # Author: Ligang.Yao
 # Script: Eric.Chang
@@ -53,7 +53,7 @@ function main()
  execute "adduser qa sudo"
  execute "mkdir -p /data/deploy"
  execute "chown qa:qa /data/deploy"
- execute "usermod -aG docker ubuntu"
+ execute "usermod -aG docker root"
  execute "usermod -aG docker qa"
  sed "s/^PasswordAuthentication.*no/PasswordAuthentication yes/g" -i /etc/ssh/sshd_config 
  grep "PasswordAuthentication yes" /etc/ssh/sshd_config || echo $C_RED"set PasswordAuthentication fail"$C_RESET
