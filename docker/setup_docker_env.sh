@@ -46,13 +46,15 @@ function main()
  execute "apt-cache policy docker-engine"
  execute "apt-get install -y docker-engine"
 # execute "systemctl status docker"
- execute "curl -L "https://github.com/docker/compose/releases/download/1.11.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose"
+ 
+ # check docker-compose version https://github.com/docker/compose/releases
+ execute "curl -L "https://github.com/docker/compose/releases/download/1.13.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose"
  execute "chmod +x /usr/local/bin/docker-compose"
  execute "apt-get install -y zip unzip"
  execute "adduser qa"
  execute "adduser qa sudo"
  execute "mkdir -p /data/deploy"
- execute "chown qa:qa /data/deploy"
+ execute "chown qa:qa /data -R"
  execute "usermod -aG docker root"
  execute "usermod -aG docker qa"
  sed "s/^PasswordAuthentication.*no/PasswordAuthentication yes/g" -i /etc/ssh/sshd_config 
