@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  wekan:
+    image: wekanteam/wekan:meteor-1.4
+    restart: always
+    links:
+      - wekandb
+    environment:
+      - MONGO_URL=mongodb://wekandb/wekan
+      - ROOT_URL=http://note.aspectgaming.com
+      - MAIL_URL=smtp://user:pass@mailserver.example.com:25/
+      - MAIL_FROM=wekan-admin@example.com
+    ports:
+      - 82:80
+
+  wekandb:
+     image: mongo
+     restart: always
+     volumes:
+       - /home/wekan/data:/data/db
