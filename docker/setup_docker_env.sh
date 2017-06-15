@@ -38,6 +38,7 @@ function main()
  execute "checkRoot"
  execute "apt-get update"
  execute "apt-get upgrade -y"
+ execute "apt-get dist-upgrade -y"
  execute "apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D"
  echo $C_GREEN"[Process]apt-add-repository 'deb https://apt.dockerproject.org/repo ubuntu-xenial main'"$C_RESET | tee -a $LOG
  apt-add-repository 'deb https://apt.dockerproject.org/repo ubuntu-xenial main' || return 1
@@ -56,6 +57,7 @@ function main()
  execute "mkdir -p /data/deploy"
  execute "chown qa:qa /data -R"
  execute "usermod -aG docker root"
+ execute "usermod -aG docker ubuntu"
  execute "usermod -aG docker qa"
  sed "s/^PasswordAuthentication.*no/PasswordAuthentication yes/g" -i /etc/ssh/sshd_config 
  grep "PasswordAuthentication yes" /etc/ssh/sshd_config || echo $C_RED"set PasswordAuthentication fail"$C_RESET
