@@ -5,6 +5,17 @@
 
 set -e
 
+waitUntilCurlDone()
+{
+	echo "waiting get from server..."
+	declare -i transferTimeSecond=0
+	while [ "$(ps | grep curl >/dev/null; echo $?)" == "0" ]; do
+		sleep 1
+		echo -e "$(ps | grep curl | wc -l) copy tasks left"
+		transferTimeSecond+=1
+	done
+	echo "copy file from server finished $transferTimeSecond Second"
+}
 
 get18avWebPhoto()
 {
@@ -61,7 +72,7 @@ checkGetCategoryPhoto()
 				echo "$folderName already download"
 			else
 				get18avWebPhoto ${raw[i]}
-				sleep 30
+				waitUntilCurlDone
 			fi 
 		done
 	fi
