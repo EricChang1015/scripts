@@ -32,6 +32,15 @@ function execute()
         echo $C_YELLOW"[Success] $@"$C_RESET | tee -a $LOG
     fi
 }
+function mountData()
+{
+ execute "file -s /dev/xvdf"
+ execute "mkfs -t ext4 /dev/xvdf"
+ execute "mount /dev/xvdf /data"
+ echo "/dev/xvdf               /data    ext4   defaults,nofail         0 2" >> /etc/fstab
+ execute "mkdir -p /data/deploy"
+ execute "chown -R qa:qa /data"
+}
 
 function main()
 {
@@ -49,7 +58,7 @@ function main()
 # execute "systemctl status docker"
  
  # check docker-compose version https://github.com/docker/compose/releases
- execute "curl -L "https://github.com/docker/compose/releases/download/1.13.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose"
+ execute "curl -L "https://github.com/docker/compose/releases/download/1.14.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose"
  execute "chmod +x /usr/local/bin/docker-compose"
  execute "apt-get install -y zip unzip"
  execute "adduser qa"
@@ -62,6 +71,14 @@ function main()
  sed "s/^PasswordAuthentication.*no/PasswordAuthentication yes/g" -i /etc/ssh/sshd_config 
  grep "PasswordAuthentication yes" /etc/ssh/sshd_config || echo $C_RED"set PasswordAuthentication fail"$C_RESET
  execute "systemctl restart ssh"
+ #for redis
+ execute "apt install sysfsutils -y"
+ echo "kernel/mm/transparent_hugepage/enabled = never" >> /etc/sysfs.conf
+ echo "vm.overcommit_memory=1" >> /etc/sysctl.conf 
+ #for setting enviroments
+ su - qa
+ alias ds='docker stats $(docker ps --format={{.Names}})' 
+ echo "set nu" >> ~/.vimrc
 }
 
 main $@
