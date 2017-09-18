@@ -141,7 +141,7 @@ function getVideoTitle()
 {
 	videoTitle=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g" | grep "影片名稱" | sed "s/.*>//g" | sed "s/,/ /g")
 	echo "$subFolder , $videoTitle" > $downloadtemp
-	cat $downloadListPattern > $downloadtemp
+	cat $downloadListPattern >> $downloadtemp
 	rm $downloadListPattern
 	cat $downloadtemp | sort -u > $downloadList
 	title=$videoTitle
