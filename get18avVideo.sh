@@ -25,8 +25,9 @@ ERROR_INVALID_TITLE=3
 
 
 downloadTo=18avVideo
-downloadList=$downloadTo/list.csv
 downloadtemp=$downloadTo/temp
+downloadListPattern="$downloadTo/list*.csv"
+downloadList=$downloadTo/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=$downloadTo/metadata/video
 
 main()
@@ -114,11 +115,11 @@ function preSetting()
 
 	htmlFileName=$(echo $URL | sed "s/.*\///g" )
 	subFolder=$(echo $htmlFileName | sed "s/.html//g" )
-	#TODO: if subFolder in $downloadList
+
 	if [ "$forceDownload" == 'n' ]; then
-		cat $downloadList | awk '{print $1}' | grep $subFolder
+		cat $downloadListPattern | awk '{print $1}' | grep $subFolder
 		if [ $? -eq 0 ]; then
-			echo "already download $(cat $downloadList | grep $subFolder)"
+			echo "already download $(cat $downloadListPattern | grep $subFolder)"
 			return $ERROR_ALREADY_DOWNLOAD
 		fi
 	fi
@@ -140,7 +141,8 @@ function getVideoTitle()
 {
 	videoTitle=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g" | grep "影片名稱" | sed "s/.*>//g" | sed "s/,/ /g")
 	echo "$subFolder , $videoTitle" > $downloadtemp
-	cat $downloadList >> $downloadtemp
+	cat $downloadListPattern > $downloadtemp
+	rm $downloadListPattern
 	cat $downloadtemp | sort -u > $downloadList
 	title=$videoTitle
 	if [ -z "$title" ]; then
