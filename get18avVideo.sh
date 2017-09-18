@@ -142,8 +142,8 @@ function getVideoTitle()
 	echo "$subFolder , $videoTitle" > $downloadtemp
 	cat $downloadList >> $downloadtemp
 	cat $downloadtemp | sort -u > $downloadList
-	echo title=$videoTitle
-	if [ ! -z $title ]; then
+	title=$videoTitle
+	if [ -z "$title" ]; then
 		rm $htmlFile
 		return $ERROR_INVALID_TITLE
 	fi
@@ -189,12 +189,18 @@ function downloadVideo()
 			echo "already download $videoFile"
 			continue
 		fi
-		videoUrl=https:$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | sort | head -1)
-		echo $videoUrl
-		if [ "$videoUrl" == "https:" ]; then
+		videoHD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-1080\-|\-720\-" | head -1)
+		videoSD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-480\-|\-426\-|\-320\-|\-360\-" | head -1)
+		if [ ! -z $videoHD ]; then
+			videoUrl=https:$videoHD
+		elif [ ! -z $videoSD ]; then
+			videoUrl=https:$videoSD
+		else
 			echo "cann't resolve videoUrl of $filename"
 			continue
-		fi 
+		fi
+		echo $videoUrl
+
 		echo "$videoFile_downloading"
 		if [ -f "$videoFile_downloading" ] ; then
 			echo "continue download $videoFile_downloading"
