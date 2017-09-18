@@ -115,15 +115,17 @@ function preSetting()
 
 	htmlFileName=$(echo $URL | sed "s/.*\///g" )
 	subFolder=$(echo $htmlFileName | sed "s/.html//g" )
-
-	if [ "$forceDownload" == 'n' ]; then
-		cat $downloadListPattern | awk '{print $1}' | grep $subFolder
-		if [ $? -eq 0 ]; then
+	downloadFolder=$downloadTo/$subFolder
+	
+	cat $downloadListPattern | awk '{print $1}' | grep $subFolder
+	# already download
+	if [ $? -eq 0 ]; then
+		if [ "$forceDownload" == 'n' ] && [ ! -d $downloadFolder ]; then
 			echo "already download $(cat $downloadListPattern | grep $subFolder)"
 			return $ERROR_ALREADY_DOWNLOAD
 		fi
 	fi
-	downloadFolder=$downloadTo/$subFolder
+
 	htmlFile=$metadataFolder/$htmlFileName
 	mkdir -p $metadataFolder
 	mkdir -p $downloadFolder
