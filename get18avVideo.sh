@@ -104,6 +104,8 @@ function show_help()
     echo -e "----------------------------------------"
     echo -e "Exp 2. Download with reference video number"
     echo -e "${C_YELLOW}$0 23623 26437 ...${C_RESET}"
+    echo -e "Exp 3. Keep downloading after logout"
+    echo -e "${C_YELLOW}nohup $0 23623 26437 ...${C_RESET}"
     echo -e "========================================"
 }
 
