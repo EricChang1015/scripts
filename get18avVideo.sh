@@ -10,6 +10,7 @@
 
 forceDownload='n'
 verbose='n'
+proxy='n'
 
 LOG="/dev/null"
 C_BG_RED="\e[41m"
@@ -20,10 +21,11 @@ C_RESET="\e[0m"
 
 ERROR_NONE=0
 ERROR_INVALID_SOURCE=1
-ERROR_ALREADY_DOWNLOAD=2
-ERROR_INVALID_TITLE=3
+ERROR_INVALID_HTML=2
+ERROR_ALREADY_DOWNLOAD=3
+ERROR_INVALID_TITLE=4
 
-
+proxy_server="40.71.33.56:3128" #from https://www.us-proxy.org/
 downloadTo=18avVideo
 downloadtemp=$downloadTo/temp
 downloadListPattern="$downloadTo/list*.csv"
@@ -60,10 +62,11 @@ function execute()
     fi
 }
 
+#Note: use ":"and "$OPTARG" to argument
 function parseParameters()
 {
 	echo $@
-	while getopts "h?vfv?h:" opt; do
+	while getopts "h?vpfpv?h:" opt; do
 	echo $opt
 		case "$opt" in
 		h|\?)
@@ -73,12 +76,15 @@ function parseParameters()
 		v)
 			set -x
 			verbose='y'
-			echo verbose
+			echo -e ${C_YELLOW}"verbose"${C_RESET}
 			;;
 		f)
 			forceDownload='y'
-			echo force 
+			echo -e ${C_YELLOW}"force"${C_RESET}
 			;;
+		p)
+			proxy='y'
+			echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
 		esac
 	done
 }
@@ -131,12 +137,53 @@ function preSetting()
 	mkdir -p $downloadFolder
 }
 
+function testHtml(){
+	grep youjizz $htmlFileName > /dev/null
+}
+
+function myCurl(){
+	if [ "$proxy" == "n" ]; then
+		curl $@
+	else
+		curl -x $proxy_server $@
+	fi
+}
+
+function tryProxy(){
+	echo "try $1 proxy"
+	proxy="$1"
+	myCurl $URL -o $htmlFileName
+	testHtml
+	if [ $? -eq 0 ]; then
+		echo edit setting
+		cd -  > /dev/null
+		sed "s/^proxy=.*/proxy=\'$1\'/g" -i $0
+		cd -  > /dev/null
+	fi
+}
+
 function getWebInfo(){
+	error_code=$ERROR_NONE
 	if [ ! -f $htmlFile ]; then
 		cd $metadataFolder
-		curl $URL -o $htmlFileName
+
+		myCurl $URL -o $htmlFileName
+		#test if content usefull info
+		testHtml
+		if [ ! $? -eq 0 ]; then
+			if [ "$proxy" == "n" ]; then
+				tryProxy y
+			else
+				tryProxy n
+			fi
+		fi
+		testHtml
+		if [ ! $? -eq 0 ]; then
+			error_code=$ERROR_INVALID_HTML
+		fi
 		cd - > /dev/null
 	fi
+	return $error_code
 }
 
 function getVideoTitle()
@@ -144,11 +191,11 @@ function getVideoTitle()
 	videoTitle=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g" | grep "影片名稱" | sed "s/.*>//g" | sed "s/,/ /g")
 	echo "$subFolder , $videoTitle" > $downloadtemp
 	cat $downloadListPattern >> $downloadtemp
-	rm $downloadListPattern
+	rm -f $downloadListPattern
 	cat $downloadtemp | sort -u > $downloadList
 	title=$videoTitle
 	if [ -z "$title" ]; then
-		rm $htmlFile
+		rm -f $htmlFile
 		return $ERROR_INVALID_TITLE
 	fi
 }
@@ -215,7 +262,7 @@ function downloadVideo()
 			cd - > /dev/null
 		elif [ ! -f "$videoFile" ]; then
 			cd $downloadFolder
-			curl -L $videoUrl -o "$filename_downloading"
+			curl -L -C - $videoUrl -o "$filename_downloading"
 			mv "$filename_downloading" "$filename"
 			cd - > /dev/null
 		else
