@@ -41,8 +41,7 @@ main()
         show_help
         return
     fi
-    mkdir -p $metadataFolder
-    mkdir -p $downloadFolder
+    mkdir -p $downloadTo
     parseParameters $@
     if [ -f $downloadOngoingList ] && [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ] ; then
         echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
@@ -164,8 +163,9 @@ function preSetting()
             return $ERROR_ALREADY_DOWNLOAD
         fi
     fi
-
     htmlFile=$metadataFolder/$htmlFileName
+    mkdir -p $metadataFolder
+    mkdir -p $downloadFolder
 }
 
 function testHtml(){
