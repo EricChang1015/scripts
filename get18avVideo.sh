@@ -32,6 +32,7 @@ downloadtemp=$downloadTo/temp
 downloadListPattern="$downloadTo/list*.csv"
 downloadList=$downloadTo/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=$downloadTo/metadata/video
+newsFolder=$downloadTo/news
 
 main()
 {
@@ -67,7 +68,7 @@ function execute()
 function parseParameters()
 {
     echo $@
-    while getopts "h?vpfpv?h:" opt; do
+    while getopts "h?vpd:dfd:pv?h:" opt; do
     echo $opt
         case "$opt" in
         h|\?)
@@ -86,8 +87,25 @@ function parseParameters()
         p)
             proxy='y'
             echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
+            ;;
+        d)
+            nDaysAgo=0
+            if [ ! -z $OPTARG ]; then
+                nDaysAgo=$OPTARG
+            fi
+            downloadDailyNews $nDaysAgo
+            exit
+            ;;
         esac
     done
+}
+
+function downloadDailyNews()
+{
+    targetDate=$(date +%Y-%m-%d -d "$1 days ago")
+    dailyNewsURL=http://18av.mm-cg.com/news/$targetDate.html
+    mkdir -p $newsFolder
+    myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
 }
 
 function show_help()
