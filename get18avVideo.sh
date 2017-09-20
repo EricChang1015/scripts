@@ -29,6 +29,7 @@ ERROR_INVALID_TITLE=4
 proxy_server="40.71.33.56:3128" #from https://www.us-proxy.org/
 downloadTo=18avVideo
 downloadtemp=$downloadTo/temp
+downloadOngoingList=$downloadTo/OngoingList.txt
 downloadListPattern="$downloadTo/list*.csv"
 downloadList=$downloadTo/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=$downloadTo/metadata/video
@@ -40,14 +41,25 @@ main()
         show_help
         return
     fi
+    mkdir -p $metadataFolder
+    mkdir -p $downloadFolder
     parseParameters $@
-    for source in $@; do
-        execute preSetting $source       || continue
-        execute getWebInfo               || return $?
-        execute getVideoTitle            || return $?
-        execute downloadPreviewImages    || return $?
-        execute downloadVideo            || return $?
-    done
+    if [ -f $downloadOngoingList ] && [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ] ; then
+        echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
+    else
+        echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
+        while [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ]; do
+            source=$(head -n1 $downloadOngoingList)
+            sed -i '1d' $downloadOngoingList
+            execute preSetting $source       || continue
+            execute getWebInfo               || return $?
+            execute getVideoTitle            || return $?
+            execute downloadPreviewImages    || return $?
+            execute downloadVideo            || return $?
+            echo left $(wc -l $downloadOngoingList | awk '{print $1}') tasks
+        done
+        rm $downloadOngoingList
+    fi
 }
 
 function execute()
@@ -154,8 +166,6 @@ function preSetting()
     fi
 
     htmlFile=$metadataFolder/$htmlFileName
-    mkdir -p $metadataFolder
-    mkdir -p $downloadFolder
 }
 
 function testHtml(){
