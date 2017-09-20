@@ -11,6 +11,8 @@ C_GREEN="-e \e[92m"
 C_YELLOW="-e \e[93m"
 C_RESET="\e[0m"
 
+username=""
+
 function checkRoot()
 {
     if [ "$(id -u)" != "0" ]; then
@@ -39,7 +41,7 @@ function mountData()
  execute "mount /dev/xvdf /data"
  echo "/dev/xvdf               /data    ext4   defaults,nofail         0 2" >> /etc/fstab
  execute "mkdir -p /data/deploy"
- execute "chown -R qa:qa /data"
+ execute "chown -R $username:$username /data"
 }
 
 function main()
@@ -58,16 +60,18 @@ function main()
 # execute "systemctl status docker"
  
  # check docker-compose version https://github.com/docker/compose/releases
- execute "curl -L "https://github.com/docker/compose/releases/download/1.14.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose"
+ execute "curl -L "https://github.com/docker/compose/releases/download/1.16.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose"
  execute "chmod +x /usr/local/bin/docker-compose"
  execute "apt-get install -y zip unzip"
- execute "adduser qa"
- execute "adduser qa sudo"
+ echo -n ${C_BG_RED}"Please input primary user name: "${C_RESET}
+ read username
+ execute "adduser $username"
+ execute "adduser $username sviudo"
  execute "mkdir -p /data/deploy"
- execute "chown qa:qa /data -R"
+ execute "chown $username:$username /data -R"
  execute "usermod -aG docker root"
  execute "usermod -aG docker ubuntu"
- execute "usermod -aG docker qa"
+ execute "usermod -aG docker $username"
  sed "s/^PasswordAuthentication.*no/PasswordAuthentication yes/g" -i /etc/ssh/sshd_config 
  grep "PasswordAuthentication yes" /etc/ssh/sshd_config || echo $C_RED"set PasswordAuthentication fail"$C_RESET
  execute "systemctl restart ssh"
@@ -76,9 +80,9 @@ function main()
  echo "kernel/mm/transparent_hugepage/enabled = never" >> /etc/sysfs.conf
  echo "vm.overcommit_memory=1" >> /etc/sysctl.conf 
  #for setting enviroments
- su - qa
- alias ds='docker stats $(docker ps --format={{.Names}})' 
- echo "set nu" >> ~/.vimrc
+ echo "alias dockerst='docker stats \$(docker ps --format={{.Names}})' " >> /home/$username/.bashrc
+ echo "set nu" >> /home/$username/.vimrc
+ su - $username
 }
 
 main $@
