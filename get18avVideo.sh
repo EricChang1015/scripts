@@ -11,7 +11,7 @@
 
 forceDownload='n'
 verbose='n'
-proxy='n'
+proxy='y'
 
 LOG="/dev/null"
 C_BG_RED="\e[41m"
@@ -116,7 +116,10 @@ function downloadDailyNews()
     targetDate=$(date +%Y-%m-%d -d "$1 days ago")
     dailyNewsURL=http://18av.mm-cg.com/news/$targetDate.html
     mkdir -p $newsFolder
-    myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
+    if [ ! -f $newsFolder/$targetDate.html ]; then
+        myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
+    fi
+    cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g"
 }
 
 function show_help()
