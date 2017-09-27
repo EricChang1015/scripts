@@ -122,6 +122,11 @@ function downloadDailyNews()
         myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
     fi
     cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g"
+    echo "open in browser? (Y/N)"
+    read -t 30 input
+    if [ $input == Y ] || [ $input == y ]; then
+        start chrome $newsFolder/$targetDate.html
+    fi
 }
 
 function show_help()
