@@ -1,11 +1,12 @@
 #!/bin/bash
 
-#todo daily download latest video
-
 # feature:
 # 09/17: add download list and check if force download or not.
-# 09/18: curl continue download when terminate => curl -C (test fail)
+# 09/18: curl continue download when terminate => curl -C
 # 09/19: use proxy for AWS can access this web
+
+# bug fix:
+# 09/27: truncate title when length longer than 255. (prevent download fail)
 
 #set -e
 
@@ -25,6 +26,7 @@ ERROR_INVALID_SOURCE=1
 ERROR_INVALID_HTML=2
 ERROR_ALREADY_DOWNLOAD=3
 ERROR_INVALID_TITLE=4
+ERROR_INVALID_INPUT=5
 
 proxy_server="40.71.33.56:3128" #from https://www.us-proxy.org/
 downloadTo=18avVideo
@@ -251,6 +253,32 @@ function downloadPreviewImages()
     done
 }
 
+function getStringBytes()
+{
+    myvar=$1
+    chrlen=${#myvar}
+    oLang=$LANG
+    LANG=C
+    bytlen=${#myvar}
+    LANG=$oLang
+    echo $bytlen
+}
+
+# To get avaliable string, because filename should less than 255 bytes
+# Arg 1: input string
+# Arg 2: bytes limitation
+# return output string
+function truncateString()
+{
+    if [ ! $# -eq 2 ]; then
+        echo "truncateString should have two arguments"
+        return ERROR_INVALID_INPUT
+    fi
+    input="$1"
+    limitBytes=$2
+    echo $input | head -c $limitBytes
+}
+
 function downloadVideo()
 {
     EmbedVideoWenList=$(cat $htmlFile | grep embed | sed "s/http/\nhttp/g" | sed "s/\".*//g" | grep embed | grep youjizz | xargs)
@@ -258,8 +286,9 @@ function downloadVideo()
     declare -i index=0
     for embedVideoWeb in $EmbedVideoWenList; do
         index+=1
-        filename="$videoTitle $index.mp4"
-        filename_downloading="$videoTitle $index.mp4.download"
+        adjustTitle=$(truncateString  "$videoTitle" 230)
+        filename="$adjustTitle $index.mp4"
+        filename_downloading="$adjustTitle $index.mp4.download"
         videoFile=$downloadFolder/$filename
         videoFile_downloading=$downloadFolder/$filename_downloading
         echo filename=$filename
