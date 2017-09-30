@@ -28,7 +28,7 @@ ERROR_ALREADY_DOWNLOAD=3
 ERROR_INVALID_TITLE=4
 ERROR_INVALID_INPUT=5
 
-proxy_server="40.71.33.56:3128" #from https://www.us-proxy.org/
+proxy_server="110.77.200.3:65205" #https://free-proxy-list.net/
 downloadTo=18avVideo
 downloadtemp=$downloadTo/temp
 downloadOngoingList=$downloadTo/OngoingList.txt
