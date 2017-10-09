@@ -12,7 +12,7 @@
 
 forceDownload='n'
 verbose='n'
-proxy='y'
+proxy='n'
 
 LOG="/dev/null"
 C_BG_RED="\e[41m"
@@ -291,9 +291,9 @@ function downloadVideo()
     declare -i index=0
     for embedVideoWeb in $EmbedVideoWenList; do
         index+=1
-        adjustTitle=$(truncateString  "$videoTitle" 230)
+        adjustTitle=$(truncateString  "$videoTitle" 240)
         filename="$adjustTitle $index.mp4"
-        filename_downloading="$adjustTitle $index.mp4.download"
+        filename_downloading="$index.mp4.download"
         videoFile=$downloadFolder/$filename
         videoFile_downloading=$downloadFolder/$filename_downloading
         echo filename=$filename
