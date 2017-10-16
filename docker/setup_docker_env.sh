@@ -66,7 +66,6 @@ function main()
  echo -n ${C_BG_RED}"Please input primary user name: "${C_RESET}
  read username
  execute "adduser $username"
- execute "adduser $username sviudo"
  execute "mkdir -p /data/deploy"
  execute "chown $username:$username /data -R"
  execute "usermod -aG docker root"
