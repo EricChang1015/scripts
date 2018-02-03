@@ -29,7 +29,8 @@ ERROR_INVALID_TITLE=4
 ERROR_INVALID_INPUT=5
 
 proxy_server="110.77.200.3:65205" #https://free-proxy-list.net/
-downloadTo=18avVideo
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+downloadTo=$DIR/18avVideo
 downloadtemp=$downloadTo/temp
 downloadOngoingList=$downloadTo/OngoingList.txt
 downloadListPattern="$downloadTo/list*.csv"
@@ -125,7 +126,7 @@ function downloadDailyNews()
     echo "open in browser? (Y/N)"
     read -t 30 input
     if [ $input == Y ] || [ $input == y ]; then
-        start chrome $newsFolder/$targetDate.html
+        start chrome --incognito $newsFolder/$targetDate.html
     fi
 }
 
