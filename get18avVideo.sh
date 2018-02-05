@@ -32,11 +32,30 @@ proxy_server="110.77.200.3:65205" #https://free-proxy-list.net/
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 downloadTo=$DIR/18avVideo
 downloadtemp=$downloadTo/temp
-downloadOngoingList=$downloadTo/OngoingList.txt
+goingList=goingList.txt
+ongoingList=ongoingList.txt
+downloadGoingList=$downloadTo/$goingList
+downloadOngoingList=$downloadTo/$ongoingList
 downloadListPattern="$downloadTo/list*.csv"
 downloadList=$downloadTo/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=$downloadTo/metadata/video
 newsFolder=$downloadTo/news
+
+
+trap '{ interruptHandler ; }' INT
+function interruptHandler()
+{
+    if [ -f $downloadGoingList ]; then
+    echo "ID $(cat $downloadGoingList) are downloading"
+    echo "Do you want to stop? (Y/N)"
+    read -t 30 input
+    if [ $input == Y ] || [ $input == y ]; then
+        rm $downloadGoingList
+        exit 0
+    fi
+    fi
+}
+
 
 main()
 {
@@ -46,12 +65,11 @@ main()
     fi
     mkdir -p $downloadTo
     parseParameters $@
-    if [ -f $downloadOngoingList ] && [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ] ; then
-        echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
-    else
-        echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
+    echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
+    if [ ! -f $downloadGoingList ]; then
         while [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ]; do
             source=$(head -n1 $downloadOngoingList)
+	    echo $source > $downloadGoingList
             sed -i '1d' $downloadOngoingList
             execute preSetting $source       || continue
             execute getWebInfo               || return $?
@@ -60,6 +78,7 @@ main()
             execute downloadVideo            || return $?
             echo left $(wc -l $downloadOngoingList | awk '{print $1}') tasks
         done
+	rm $downloadGoingList
         rm $downloadOngoingList
     fi
 }
@@ -81,9 +100,7 @@ function execute()
 #Note: use ":"and "$OPTARG" to argument
 function parseParameters()
 {
-    echo $@
-    while getopts "h?vpd:dfd:pv?h:" opt; do
-    echo $opt
+    while getopts "h?vlpd:dfd:pvl?h:" opt; do
         case "$opt" in
         h|\?)
             show_help
@@ -101,6 +118,15 @@ function parseParameters()
         p)
             proxy='y'
             echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
+            ;;
+        l)
+	    if [ -f $downloadGoingList ]; then
+	        echo these ID are downloading: $(cat $downloadGoingList | xargs)
+	    fi
+	    if [ -f $downloadOngoingList ]; then
+                echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
+            fi
+	    exit
             ;;
         d)
             nDaysAgo=0
@@ -234,7 +260,7 @@ function getVideoTitle()
     echo "$subFolder , $videoTitle" > $downloadtemp
     cat $downloadListPattern >> $downloadtemp
     rm -f $downloadListPattern
-    cat $downloadtemp | sort -u > $downloadList
+    cat $downloadtemp | sort -u -h > $downloadList
     title=$videoTitle
     if [ -z "$title" ]; then
         rm -f $htmlFile
@@ -310,7 +336,7 @@ function downloadVideo()
             continue
         fi
         videoHD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-1080\-|\-720\-" | head -1)
-        videoSD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-480\-|\-426\-|\-320\-|\-360\-" | head -1)
+        videoSD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-266\-|\-272\-|\-288\-|\-320\-|\-340\-|\-356\-|\-360\-|\-384\-|\-414\-|\-424\-|\-426\-|\-430\-|\-480\-\-320\-|\-340\-|\-356\-|\-360\-|\-384\-|\-414\-|\-424\-|\-426\-|\-430\-|\-480\-" | head -1)
         if [ ! -z $videoHD ]; then
             videoUrl=https:$videoHD
         elif [ ! -z $videoSD ]; then
