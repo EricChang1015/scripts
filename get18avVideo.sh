@@ -46,13 +46,14 @@ trap '{ interruptHandler ; }' INT
 function interruptHandler()
 {
     if [ -f $downloadGoingList ]; then
-    echo "ID $(cat $downloadGoingList) are downloading"
-    echo "Do you want to stop? (Y/N)"
-    read -t 30 input
-    if [ $input == Y ] || [ $input == y ]; then
-        rm $downloadGoingList
-        exit 0
-    fi
+        echo "ID $(cat $downloadGoingList) are downloading"
+        echo "Do you want to stop? (Y/N)"
+        read -t 30 input
+        if [ $input == Y ] || [ $input == y ]; then
+            cat $downloadGoingList >> $downloadOngoingList
+            rm $downloadGoingList
+            exit 0
+        fi
     fi
 }
 
@@ -69,7 +70,7 @@ main()
     if [ ! -f $downloadGoingList ]; then
         while [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ]; do
             source=$(head -n1 $downloadOngoingList)
-	    echo $source > $downloadGoingList
+        echo $source > $downloadGoingList
             sed -i '1d' $downloadOngoingList
             execute preSetting $source       || continue
             execute getWebInfo               || return $?
@@ -78,16 +79,16 @@ main()
             execute downloadVideo            || return $?
             echo left $(wc -l $downloadOngoingList | awk '{print $1}') tasks
         done
-	rm $downloadGoingList
-        rm $downloadOngoingList
+    rm -rf $downloadGoingList
+        rm -rf $downloadOngoingList
     fi
 }
 
 function execute()
 {
     echo -e $C_GREEN"[Process] $@"$C_RESET | tee -a $LOG
-    echo $@ 
-    $@ 
+    echo $@
+    $@
     result=$?
     if [ ! 0 -eq $result ]; then
         echo -e $C_RED"[Fail] $@"$C_RESET | tee -a $LOG
@@ -120,13 +121,7 @@ function parseParameters()
             echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
             ;;
         l)
-	    if [ -f $downloadGoingList ]; then
-	        echo these ID are downloading: $(cat $downloadGoingList | xargs)
-	    fi
-	    if [ -f $downloadOngoingList ]; then
-                echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
-            fi
-	    exit
+            showOngoing
             ;;
         d)
             nDaysAgo=0
@@ -134,12 +129,21 @@ function parseParameters()
                 nDaysAgo=$OPTARG
             fi
             downloadDailyNews $nDaysAgo
-            exit
             ;;
         esac
     done
 }
 
+function showOngoing()
+{
+    if [ -f $downloadGoingList ]; then
+        echo these ID are downloading: $(cat $downloadGoingList | xargs)
+    fi
+    if [ -f $downloadOngoingList ]; then
+            echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
+        fi
+    exit
+}
 function downloadDailyNews()
 {
     targetDate=$(date +%Y-%m-%d -d "$1 days ago")
@@ -149,11 +153,24 @@ function downloadDailyNews()
         myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
     fi
     cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g"
-    echo "open in browser? (Y/N)"
+    echo "open in browser? (Y/N) or enter index to download index (1-8)"
     read -t 30 input
-    if [ $input == Y ] || [ $input == y ]; then
+    downloadIndexSet=$(echo $input | grep -E "[0-9\ ]+" -o | sed "s/ /\n/g" | sort -u | xargs)
+    downloadNumbers=$(echo $downloadIndexSet | wc -w)
+    echo $downloadNumbers
+    if [ $downloadNumbers -ge 1 ]; then
+        for index in $downloadIndexSet ; do
+        downloadId=$(cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | grep -E "^[0-9]+" -o | sed -n ${index}p)
+        echo "put $downloadId in $downloadOngoingList"
+        echo $downloadId >> $downloadOngoingList
+    done
+    elif [ $input == Y ] || [ $input == y ]; then
         start chrome --incognito $newsFolder/$targetDate.html
+    exit
+    else
+        exit
     fi
+
 }
 
 function show_help()
@@ -162,16 +179,20 @@ function show_help()
     echo -e "${C_YELLOW}This bash script help you to download   ${C_RESET}"
     echo -e "${C_YELLOW}video from http://18av.mm-cg.com        ${C_RESET}"
     echo -e "${C_YELLOW}========================================${C_RESET}"
-    echo -e "=            How to use                ="
+    echo -e "=            options                ="
     echo -e "-f force download, even in $downloadList"
+    echo -e "-x verbose"
+    echo -e "-y use proxy"
+    echo -e "-l show ongoing list"
+    echo -e "-d N: get N days ago AV news"
     echo -e "----------------------------------------"
     echo -e "Exp 1. Download with whole URL"
     echo -e "${C_YELLOW}$0 http://18av.mm-cg.com/18av/23623.html ...${C_RESET}"
     echo -e "----------------------------------------"
     echo -e "Exp 2. Download with reference video number"
-    echo -e "${C_YELLOW}$0 23623 26437 ...${C_RESET}"
+    echo -e "${C_YELLOW}$0 23623 26437 ... &${C_RESET}"
     echo -e "Exp 3. Keep downloading after logout"
-    echo -e "${C_YELLOW}nohup $0 23623 26437 ...${C_RESET}"
+    echo -e "${C_YELLOW}nohup $0 23623 26437 ... &${C_RESET}"
     echo -e "========================================"
 }
 
