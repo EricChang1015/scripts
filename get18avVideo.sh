@@ -1,12 +1,7 @@
 #!/bin/bash
 
-# feature:
-# 09/17: add download list and check if force download or not.
-# 09/18: curl continue download when terminate => curl -C
-# 09/19: use proxy for AWS can access this web
-
-# bug fix:
-# 09/27: truncate title when length longer than 255. (prevent download fail)
+# This bash script is used to help men's mental health, download healthy video from 18av.mm-cg.com.
+# hope you will like it.
 
 #set -e
 
@@ -28,18 +23,20 @@ ERROR_ALREADY_DOWNLOAD=3
 ERROR_INVALID_TITLE=4
 ERROR_INVALID_INPUT=5
 
-proxy_server="110.77.200.3:65205" #https://free-proxy-list.net/
+#proxy can reference to https://free-proxy-list.net/
+proxy_server=""
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 downloadTo=$DIR/18avVideo
-downloadtemp=$downloadTo/temp
-goingList=goingList.txt
-ongoingList=ongoingList.txt
-downloadGoingList=$downloadTo/$goingList
-downloadOngoingList=$downloadTo/$ongoingList
-downloadListPattern="$downloadTo/list*.csv"
-downloadList=$downloadTo/list.$(date +%Y%m%d-%H%M).csv
-metadataFolder=$downloadTo/metadata/video
-newsFolder=$downloadTo/news
+downloadtemp=${downloadTo}/temp
+bashScriptName=$(echo $0 | sed "s/.*\///g")
+goingList=goingList.${bashScriptName}.txt
+ongoingList=ongoingList.${bashScriptName}.txt
+downloadGoingList=${downloadTo}/${goingList}
+downloadOngoingList=${downloadTo}/${ongoingList}
+downloadListPattern="${downloadTo}/list*.csv"
+downloadList=${downloadTo}/list.$(date +%Y%m%d-%H%M).csv
+metadataFolder=${downloadTo}/metadata/video
+newsFolder=${downloadTo}/news
 
 
 trap '{ interruptHandler ; }' INT
@@ -54,13 +51,15 @@ function interruptHandler()
             rm $downloadGoingList
             exit 0
         fi
+    else
+        exit 0
     fi
 }
 
 
 main()
 {
-    if [ $# -eq 0 ]; then
+    if [ $# -eq 0 ] && [ ! -f $downloadOngoingList ]; then
         show_help
         return
     fi
@@ -79,7 +78,7 @@ main()
             execute downloadVideo            || return $?
             echo left $(wc -l $downloadOngoingList | awk '{print $1}') tasks
         done
-    rm -rf $downloadGoingList
+        rm -rf $downloadGoingList
         rm -rf $downloadOngoingList
     fi
 }
@@ -118,7 +117,17 @@ function parseParameters()
             ;;
         p)
             proxy='y'
-            echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
+            if [ ! -z $proxy_server ]; then
+                echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
+            else
+                echo "Please enter proxy info like this format: \${ip}:\${port}"
+                echo "You can reference to https://free-proxy-list.net/"
+                echo "Or use Ctrl+C to exit"
+                echo ":"
+                read -t 120 input
+                proxy_server=$input
+                sed "s/^proxy_server=.*/proxy_server=\"$proxy_server\"/g" $0 -i
+            fi
             ;;
         l)
             showOngoing
@@ -148,6 +157,7 @@ function downloadDailyNews()
 {
     targetDate=$(date +%Y-%m-%d -d "$1 days ago")
     dailyNewsURL=http://18av.mm-cg.com/news/$targetDate.html
+    echo "==== ${targetDate} ===="
     mkdir -p $newsFolder
     if [ ! -f $newsFolder/$targetDate.html ]; then
         myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
@@ -156,17 +166,21 @@ function downloadDailyNews()
     echo "open in browser? (Y/N) or enter index to download index (1-8)"
     read -t 30 input
     downloadIndexSet=$(echo $input | grep -E "[0-9\ ]+" -o | sed "s/ /\n/g" | sort -u | xargs)
+    isPending=$(echo $input | grep -i -o "p")
     downloadNumbers=$(echo $downloadIndexSet | wc -w)
     echo $downloadNumbers
     if [ $downloadNumbers -ge 1 ]; then
         for index in $downloadIndexSet ; do
-        downloadId=$(cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | grep -E "^[0-9]+" -o | sed -n ${index}p)
-        echo "put $downloadId in $downloadOngoingList"
-        echo $downloadId >> $downloadOngoingList
-    done
+            downloadId=$(cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | grep -E "^[0-9]+" -o | sed -n ${index}p)
+            echo "put $downloadId in $downloadOngoingList"
+            echo $downloadId >> $downloadOngoingList
+        done
+        if [ $isPending == P ] || [ $isPending == p ]; then
+            exit
+        fi
     elif [ $input == Y ] || [ $input == y ]; then
         start chrome --incognito $newsFolder/$targetDate.html
-    exit
+        exit
     else
         exit
     fi
@@ -182,7 +196,7 @@ function show_help()
     echo -e "=            options                ="
     echo -e "-f force download, even in $downloadList"
     echo -e "-x verbose"
-    echo -e "-y use proxy"
+    echo -e "-p use proxy"
     echo -e "-l show ongoing list"
     echo -e "-d N: get N days ago AV news"
     echo -e "----------------------------------------"
@@ -358,10 +372,13 @@ function downloadVideo()
         fi
         videoHD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-1080\-|\-720\-" | head -1)
         videoSD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-266\-|\-272\-|\-288\-|\-320\-|\-340\-|\-356\-|\-360\-|\-384\-|\-414\-|\-424\-|\-426\-|\-430\-|\-480\-\-320\-|\-340\-|\-356\-|\-360\-|\-384\-|\-414\-|\-424\-|\-426\-|\-430\-|\-480\-" | head -1)
+        videoUnknown=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | head -1)
         if [ ! -z $videoHD ]; then
             videoUrl=https:$videoHD
         elif [ ! -z $videoSD ]; then
             videoUrl=https:$videoSD
+        elif [ ! -z $videoUnknown ]; then
+            videoUrl=https:$videoUnknown
         else
             echo "cann't resolve videoUrl of $filename"
             continue
