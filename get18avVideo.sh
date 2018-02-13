@@ -100,7 +100,7 @@ function execute()
 #Note: use ":"and "$OPTARG" to argument
 function parseParameters()
 {
-    while getopts "h?vlpd:dfd:pvl?h:" opt; do
+    while getopts "h?vlcpd:dfd:pvlc?h:" opt; do
         case "$opt" in
         h|\?)
             show_help
@@ -132,6 +132,9 @@ function parseParameters()
         l)
             showOngoing
             ;;
+        c)
+            fixBrokenFile
+            ;;
         d)
             nDaysAgo=0
             if [ ! -z $OPTARG ]; then
@@ -147,12 +150,53 @@ function showOngoing()
 {
     if [ -f $downloadGoingList ]; then
         echo these ID are downloading: $(cat $downloadGoingList | xargs)
+        ls -lht ${downloadTo}/$(cat $downloadGoingList | head -n1 | awk '{print $1}')/*.mp4*
     fi
-    if [ -f $downloadOngoingList ]; then
-            echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
+    if [ -f $downloadOngoingList ] && [ $(cat $downloadOngoingList | wc -w ) -ge 1 ]; then
+        echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
+    fi
+    otherList=$(ls $(echo $downloadGoingList $downloadOngoingList | sed "s/${bashScriptName}/\*/g") | sed "s/ /\n/g" | grep -v -E "${goingList}|${ongoingList}")
+
+    if [ ! -z "$otherList" ]; then
+        echo -e "\n= Other List ="
+    fi
+
+    for file in $otherList ; do
+        if [ $(cat $file | wc -w) -ge 1 ]; then
+            echo $file | sed "s/.*\///g"
+            cat $file | xargs
         fi
+    done
     exit
 }
+
+function fixBrokenFile()
+{
+    echo "==== enter q to exit ===="
+    while true; do
+        echo "enter folder number:"
+        read -t 30 TbfFolder
+        if [ $TbfFolder == q ]; then
+            break
+        fi
+        if [ ! -z ${TbfFolder} ] && [ -d ${downloadTo}/${TbfFolder} ]; then
+           echo "enter file index number:"
+           read -t 30 TbfIndex
+           if [ $TbfIndex == q ]; then
+               break
+           fi
+           if [ ! -z ${TbfIndex} ] && [ -f "$(ls ${downloadTo}/${TbfFolder}/*${TbfIndex}.mp4)" ]; then
+               cd ${downloadTo}/${TbfFolder}/
+               echo fix $(ls *${TbfIndex}.mp4)
+               mv *${TbfIndex}.mp4 ${TbfIndex}.mp4.download
+               echo ${TbfFolder} >> ${downloadOngoingList}
+           fi
+        fi
+    done
+    exit
+
+}
+
 function downloadDailyNews()
 {
     targetDate=$(date +%Y-%m-%d -d "$1 days ago")
@@ -197,6 +241,7 @@ function show_help()
     echo -e "-f force download, even in $downloadList"
     echo -e "-x verbose"
     echo -e "-p use proxy"
+    echo -e "-c continue download broken file"
     echo -e "-l show ongoing list"
     echo -e "-d N: get N days ago AV news"
     echo -e "----------------------------------------"
