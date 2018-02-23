@@ -37,25 +37,7 @@ downloadListPattern="${downloadTo}/list*.csv"
 downloadList=${downloadTo}/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=${downloadTo}/metadata/video
 newsFolder=${downloadTo}/news
-
-
-trap '{ interruptHandler ; }' INT
-function interruptHandler()
-{
-    if [ -f $downloadGoingList ]; then
-        echo "ID $(cat $downloadGoingList) are downloading"
-        echo "Do you want to stop? (Y/N)"
-        read -t 30 input
-        if [ $input == Y ] || [ $input == y ]; then
-            cat $downloadGoingList >> $downloadOngoingList
-            rm $downloadGoingList
-            exit 0
-        fi
-    else
-        exit 0
-    fi
-}
-
+lock=${downloadTo}/lock
 
 main()
 {
@@ -155,18 +137,18 @@ function showOngoing()
     if [ -f $downloadOngoingList ] && [ $(cat $downloadOngoingList | wc -w ) -ge 1 ]; then
         echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
     fi
-    otherList=$(ls $(echo $downloadGoingList $downloadOngoingList | sed "s/${bashScriptName}/\*/g") | sed "s/ /\n/g" | grep -v -E "${goingList}|${ongoingList}")
+    otherList=$(ls $(echo $downloadGoingList $downloadOngoingList | sed "s/${bashScriptName}/\*/g") 2>/dev/null \
+              | sed "s/ /\n/g" | grep -v -E "${goingList}|${ongoingList}")
 
     if [ ! -z "$otherList" ]; then
         echo -e "\n= Other List ="
+        for file in $otherList ; do
+            if [ $(cat $file | wc -w) -ge 1 ]; then
+                echo $file | sed "s/.*\///g"
+                cat $file | xargs
+            fi
+        done
     fi
-
-    for file in $otherList ; do
-        if [ $(cat $file | wc -w) -ge 1 ]; then
-            echo $file | sed "s/.*\///g"
-            cat $file | xargs
-        fi
-    done
     exit
 }
 
@@ -336,6 +318,7 @@ function getWebInfo(){
 
 function getVideoTitle()
 {
+    trylock
     videoTitle=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g" | grep "影片名稱" | sed "s/.*>//g" | sed "s/,/ /g")
     echo "$subFolder , $videoTitle" > $downloadtemp
     cat $downloadListPattern >> $downloadtemp
@@ -346,6 +329,7 @@ function getVideoTitle()
         rm -f $htmlFile
         return $ERROR_INVALID_TITLE
     fi
+    unlock
 }
 
 
@@ -440,6 +424,47 @@ function downloadVideo()
             echo "already download $filename"
         fi
     done
+    ls -lht ${downloadFolder}/*.mp4
+}
+
+function waitlock()
+{
+    counter=20
+    while [ -f ${lock}.* ] && [ $counter -gt 0 ] ; do
+        sleep 2
+        let counter-=1
+        echo $(ls ${lock}.* | sed -e "s/.*lock.//g") ls locking
+    done
+}
+
+function trylock()
+{
+    waitlock
+    touch ${lock}.${bashScriptName}
+}
+
+function unlock()
+{
+    rm -rf ${lock}.${bashScriptName}
+}
+
+trap '{ interruptHandler ; }' INT
+function interruptHandler()
+{
+    if [ -f $downloadGoingList ]; then
+        echo "ID $(cat $downloadGoingList) are downloading"
+        echo "Do you want to stop? (Y/N)"
+        read -t 30 input
+        if [ $input == Y ] || [ $input == y ]; then
+            cat $downloadGoingList >> $downloadOngoingList
+            rm $downloadGoingList
+            unlock
+            exit 0
+        fi
+    else
+        unlock
+        exit 0
+    fi
 }
 
 main $@
