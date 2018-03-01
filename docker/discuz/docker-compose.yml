@@ -1,0 +1,38 @@
+version: '3.1'
+services:
+  db_srv:
+    container_name: mysql
+    image: mariadb:10.1.22
+    environment:
+      - MYSQL_DATABASE=ericchang1015
+      - MYSQL_ROOT_PASSWORD=ericchang1015
+    volumes:
+      - /data/mysql:/var/lib/mysql
+      - ./conf.d:/etc/mysql/conf.d
+      - ./init:/docker-entrypoint-initdb.d
+    ports:
+      - 3306:3306
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  discuz:
+    container_name: sky_discuz
+    image: skyzhou/docker-discuz
+    depends_on:
+      - db_srv
+    environment:
+      - DISCUZ_DB_USER=root
+      - DISCUZ_DB_PASSWORD=ericchang1015
+      - MYSQL_PORT_3306_TCP=tcp://172.31.27.42:3306
+    links:
+      - db_srv:mysql
+    ports:
+      - 80:80
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    
