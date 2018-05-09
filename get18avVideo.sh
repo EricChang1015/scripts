@@ -2,6 +2,7 @@
 
 # This bash script is used to help men's mental health, download healthy video from 18av.mm-cg.com.
 # hope you will like it.
+# 2018/05/09
 
 #set -e
 
@@ -375,6 +376,39 @@ function truncateString()
     echo $input | head -c $limitBytes
 }
 
+function downloadVideoCommand()
+{
+    curl -L -C - $videoUrl -o "$filename_downloading"
+}
+
+function isStreamDownloadIncomplete()
+{
+    if [ ! -z "$(ffprobe -version 2>&1)" ] ; then
+        streamBitRate=$(ffprobe $filename_downloading 2>&1 | grep -E "bitrate:.*kb\/s" -o | sed "s/ kb\/s//g" | sed "s/.* //g")
+        videoTrackBitRate=$(ffprobe $filename_downloading 2>&1 | grep -E "Video.*kb\/s" -o -m1 | sed "s/ kb\/s//g" | sed "s/.* //g")
+        if [ $streamBitRate -gt $videoTrackBitRate ]; then
+            echo "$filename download completed"
+            return 1 #complete
+        fi
+    fi
+    return 0 #incomplete
+}
+
+function downloadVideoUntilComplete()
+{
+    downloadVideoCommand
+    declare -i maxRetry=5;
+    if [ -z "$(ffprobe -version 2>&1)" ] ; then
+        return;
+    fi
+    for ((retry=1;retry<=$maxRetry; retry++)); do
+        isStreamDownloadIncomplete || return;
+        sleep 5
+        echo "$filename retry $i time"
+        downloadVideoCommand
+    done
+}
+
 function downloadVideo()
 {
     EmbedVideoWenList=$(cat $htmlFile | grep embed | sed "s/http/\nhttp/g" | sed "s/\".*//g" | grep embed | grep youjizz | xargs)
@@ -417,7 +451,7 @@ function downloadVideo()
         echo "$videoFile_downloading"
         if [ -f "$videoFile_downloading" ] || [ ! -f "$videoFile" ] ; then
             cd $downloadFolder
-            curl -L -C - $videoUrl -o "$filename_downloading"
+            downloadVideoUntilComplete
             mv "$filename_downloading" "$filename"
             cd - > /dev/null
         else
