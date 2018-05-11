@@ -2,7 +2,7 @@
 
 # This bash script is used to help men's mental health, download healthy video from 18av.mm-cg.com.
 # hope you will like it.
-# 2018/05/09
+# 2018/05/11:
 
 #set -e
 
@@ -23,6 +23,7 @@ ERROR_INVALID_HTML=2
 ERROR_ALREADY_DOWNLOAD=3
 ERROR_INVALID_TITLE=4
 ERROR_INVALID_INPUT=5
+ERROR_DOWNLOADING=6
 
 #proxy can reference to https://free-proxy-list.net/
 proxy_server=""
@@ -30,8 +31,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 downloadTo=$DIR/18avVideo
 downloadtemp=${downloadTo}/temp
 bashScriptName=$(echo $0 | sed "s/.*\///g")
-goingList=goingList.${bashScriptName}.txt
+prefix_goingList=goingList
+goingList=${prefix_goingList}.${bashScriptName}.txt
 ongoingList=ongoingList.${bashScriptName}.txt
+prefix_downloadGoingList=${downloadTo}/${prefix_goingList}
 downloadGoingList=${downloadTo}/${goingList}
 downloadOngoingList=${downloadTo}/${ongoingList}
 downloadListPattern="${downloadTo}/list*.csv"
@@ -39,6 +42,27 @@ downloadList=${downloadTo}/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=${downloadTo}/metadata/video
 newsFolder=${downloadTo}/news
 lock=${downloadTo}/lock
+
+
+# arg1: index to download
+function checkIfDownloading()
+{
+    # no going list
+    ls ${prefix_downloadGoingList}.* >/dev/null 2>&1 || return 0 
+    # incorrect argument number
+    if [ ! $# -eq 1 ]; then
+        echo -e ${C_RED}"incorrect argument number which should be 1 argument"${C_RESET}
+        return 1
+    fi
+    grep $1 ${prefix_downloadGoingList}.* >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo -e ${C_RED}"$1 is downloading"${C_RESET}
+        grep $1 ${prefix_downloadGoingList}.* -H
+        return 1
+    else
+        return 0
+    fi
+}
 
 main()
 {
@@ -52,9 +76,9 @@ main()
     if [ ! -f $downloadGoingList ]; then
         while [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ]; do
             source=$(head -n1 $downloadOngoingList)
-        echo $source > $downloadGoingList
             sed -i '1d' $downloadOngoingList
             execute preSetting $source       || continue
+            echo $source > $downloadGoingList
             execute getWebInfo               || return $?
             execute getVideoTitle            || return $?
             execute downloadPreviewImages    || return $?
@@ -241,6 +265,7 @@ function show_help()
 function preSetting()
 {
     source=$1
+    checkIfDownloading $source || return $ERROR_DOWNLOADING
     testInput="$(echo $source | grep html)"
     if [ ! -z $testInput ]; then
         URL=$1
@@ -404,7 +429,7 @@ function downloadVideoUntilComplete()
     for ((retry=1;retry<=$maxRetry; retry++)); do
         isStreamDownloadIncomplete || return;
         sleep 5
-        echo "$filename retry $i time"
+        echo "$filename retry $retry time"
         downloadVideoCommand
     done
 }
@@ -433,20 +458,24 @@ function downloadVideo()
             echo "already download $videoFile"
             continue
         fi
-        videoHD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-1080\-|\-720\-" | head -1)
-        videoSD=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "\-266\-|\-272\-|\-288\-|\-320\-|\-340\-|\-356\-|\-360\-|\-384\-|\-414\-|\-424\-|\-426\-|\-430\-|\-480\-\-320\-|\-340\-|\-356\-|\-360\-|\-384\-|\-414\-|\-424\-|\-426\-|\-430\-|\-480\-" | head -1)
-        videoUnknown=$(grep mp4 $embedMetafile | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | head -1)
-        if [ ! -z $videoHD ]; then
+
+        videoFHD=$(grep mp4 "$embedMetafile" | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "1920\-1080\-" | head -1)
+        videoHD=$(grep mp4 "$embedMetafile" | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "1280\-720\-" | head -1)
+        videoSD="$(grep mp4 "$embedMetafile" | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | grep -E "532\-480|536\-480|546\-480|564\-480|678\-480|704\-480|710\-480|712\-480|718\-480|720\-480|736\-414" | head -1)"
+        videoUnknown=$(grep mp4 "$embedMetafile" | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | head -1)
+
+        if [ ! -z "$videoFHD" ]; then
+            videoUrl=https:$videoFHD
+        elif [ ! -z "$videoHD" ]; then
             videoUrl=https:$videoHD
-        elif [ ! -z $videoSD ]; then
+        elif [ ! -z "$videoSD" ]; then
             videoUrl=https:$videoSD
-        elif [ ! -z $videoUnknown ]; then
+        elif [ ! -z "$videoUnknown" ]; then
             videoUrl=https:$videoUnknown
         else
             echo "cann't resolve videoUrl of $filename"
             continue
         fi
-        echo $videoUrl
 
         echo "$videoFile_downloading"
         if [ -f "$videoFile_downloading" ] || [ ! -f "$videoFile" ] ; then
@@ -488,8 +517,8 @@ function interruptHandler()
     if [ -f $downloadGoingList ]; then
         echo "ID $(cat $downloadGoingList) are downloading"
         echo "Do you want to stop? (Y/N)"
-        read -t 30 input
-        if [ $input == Y ] || [ $input == y ]; then
+        read -t 60 input
+        if [ $input == 'Y' ] || [ $input == 'y' ]; then
             cat $downloadGoingList >> $downloadOngoingList
             rm $downloadGoingList
             unlock
