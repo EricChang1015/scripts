@@ -2,7 +2,7 @@
 
 # This bash script is used to help men's mental health, download healthy video from 18av.mm-cg.com.
 # hope you will like it.
-# 2018/05/11:
+# 2018/05/26:
 
 #set -e
 
@@ -29,8 +29,8 @@ ERROR_DOWNLOADING=6
 proxy_server=""
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 downloadTo=$DIR/18avVideo
-downloadtemp=${downloadTo}/temp
 bashScriptName=$(echo $0 | sed "s/.*\///g")
+downloadtemp=${downloadTo}/temp.${bashScriptName}
 prefix_goingList=goingList
 goingList=${prefix_goingList}.${bashScriptName}.txt
 ongoingList=ongoingList.${bashScriptName}.txt
@@ -41,6 +41,7 @@ downloadListPattern="${downloadTo}/list*.csv"
 downloadList=${downloadTo}/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=${downloadTo}/metadata/video
 newsFolder=${downloadTo}/news
+searchFolder=${downloadTo}/search
 lock=${downloadTo}/lock
 
 
@@ -66,48 +67,48 @@ function checkIfDownloading()
 
 main()
 {
-    if [ $# -eq 0 ] && [ ! -f $downloadOngoingList ]; then
+    if [ $# -eq 0 ] && [ ! -f ${downloadOngoingList} ]; then
         show_help
         return
     fi
-    mkdir -p $downloadTo
+    mkdir -p ${downloadTo}
     parseParameters $@
-    echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> $downloadOngoingList
-    if [ ! -f $downloadGoingList ]; then
-        while [ $(wc -l $downloadOngoingList | awk '{print $1}') -gt 0 ]; do
-            source=$(head -n1 $downloadOngoingList)
-            sed -i '1d' $downloadOngoingList
-            execute preSetting $source       || continue
-            echo $source > $downloadGoingList
+    echo $@ | sed "s/ /\n/g" | sort -u | sed '/^\s*$/d' | grep -v "-" >> ${downloadOngoingList}
+    if [ ! -f ${downloadGoingList} ]; then
+        while [ $(wc -l ${downloadOngoingList} | awk '{print $1}') -gt 0 ]; do
+            source=$(head -n1 ${downloadOngoingList})
+            sed -i '1d' ${downloadOngoingList}
+            execute preSetting ${source}       || continue
+            echo ${source} > ${downloadGoingList}
             execute getWebInfo               || return $?
             execute getVideoTitle            || return $?
             execute downloadPreviewImages    || return $?
             execute downloadVideo            || return $?
-            echo left $(wc -l $downloadOngoingList | awk '{print $1}') tasks
+            echo left $(wc -l ${downloadOngoingList} | awk '{print $1}') tasks
         done
-        rm -rf $downloadGoingList
-        rm -rf $downloadOngoingList
+        rm -rf ${downloadGoingList}
+        rm -rf ${downloadOngoingList}
     fi
 }
 
 function execute()
 {
-    echo -e $C_GREEN"[Process] $@"$C_RESET | tee -a $LOG
+    echo -e ${C_GREEN}"[Process] $@"${C_RESET} | tee -a $LOG
     echo $@
     $@
     result=$?
     if [ ! 0 -eq $result ]; then
-        echo -e $C_RED"[Fail] $@"$C_RESET | tee -a $LOG
+        echo -e ${C_RED}"[Fail] $@"${C_RESET} | tee -a $LOG
         return $result
     else
-        echo -e $C_YELLOW"[Success] $@"$C_RESET | tee -a $LOG
+        echo -e ${C_YELLOW}"[Success] $@"${C_RESET} | tee -a $LOG
     fi
 }
 
 #Note: use ":"and "$OPTARG" to argument
 function parseParameters()
 {
-    while getopts "h?vlcpd:dfd:pvlc?h:" opt; do
+    while getopts "h?vlcpd:s:fd:s:pvlc?h:" opt; do
         case "$opt" in
         h|\?)
             show_help
@@ -124,16 +125,16 @@ function parseParameters()
             ;;
         p)
             proxy='y'
-            if [ ! -z $proxy_server ]; then
-                echo -e ${C_YELLOW}"use proxy $proxy_server"${C_RESET}
+            if [ ! -z ${proxy_server} ]; then
+                echo -e ${C_YELLOW}"use proxy ${proxy_server}"${C_RESET}
             else
                 echo "Please enter proxy info like this format: \${ip}:\${port}"
                 echo "You can reference to https://free-proxy-list.net/"
                 echo "Or use Ctrl+C to exit"
                 echo ":"
                 read -t 120 input
-                proxy_server=$input
-                sed "s/^proxy_server=.*/proxy_server=\"$proxy_server\"/g" $0 -i
+                proxy_server=${input}
+                sed "s/^proxy_server=.*/proxy_server=\"${proxy_server}\"/g" $0 -i
             fi
             ;;
         l)
@@ -149,20 +150,26 @@ function parseParameters()
             fi
             downloadDailyNews $nDaysAgo
             ;;
+        s)
+            if [ ! -z $OPTARG ]; then
+                keyword=$OPTARG
+            fi
+            searchVideo $keyword
+            ;;
         esac
     done
 }
 
 function showOngoing()
 {
-    if [ -f $downloadGoingList ]; then
-        echo these ID are downloading: $(cat $downloadGoingList | xargs)
-        ls -lht ${downloadTo}/$(cat $downloadGoingList | head -n1 | awk '{print $1}')/*.mp4*
+    if [ -f ${downloadGoingList} ]; then
+        echo these ID are downloading: $(cat ${downloadGoingList} | xargs)
+        ls -lht ${downloadTo}/$(cat ${downloadGoingList} | head -n1 | awk '{print $1}')/*.mp4*
     fi
-    if [ -f $downloadOngoingList ] && [ $(cat $downloadOngoingList | wc -w ) -ge 1 ]; then
-        echo these ID are pending to download: $(cat $downloadOngoingList | xargs)
+    if [ -f ${downloadOngoingList} ] && [ $(cat ${downloadOngoingList} | wc -w ) -ge 1 ]; then
+        echo these ID are pending to download: $(cat ${downloadOngoingList} | xargs)
     fi
-    otherList=$(ls $(echo $downloadGoingList $downloadOngoingList | sed "s/${bashScriptName}/\*/g") 2>/dev/null \
+    otherList=$(ls $(echo ${downloadGoingList} ${downloadOngoingList} | sed "s/${bashScriptName}/\*/g") 2>/dev/null \
               | sed "s/ /\n/g" | grep -v -E "${goingList}|${ongoingList}")
 
     if [ ! -z "$otherList" ]; then
@@ -183,13 +190,13 @@ function fixBrokenFile()
     while true; do
         echo "enter folder number:"
         read -t 30 TbfFolder
-        if [ $TbfFolder == q ]; then
+        if [ $TbfFolder == "q" ]; then
             break
         fi
         if [ ! -z ${TbfFolder} ] && [ -d ${downloadTo}/${TbfFolder} ]; then
            echo "enter file index number:"
            read -t 30 TbfIndex
-           if [ $TbfIndex == q ]; then
+           if [ $TbfIndex == "q" ]; then
                break
            fi
            if [ ! -z ${TbfIndex} ] && [ -f "$(ls ${downloadTo}/${TbfFolder}/*${TbfIndex}.mp4)" ]; then
@@ -204,39 +211,80 @@ function fixBrokenFile()
 
 }
 
-function downloadDailyNews()
+function downloadFromHtmlFile()
 {
-    targetDate=$(date +%Y-%m-%d -d "$1 days ago")
-    dailyNewsURL=http://18av.mm-cg.com/news/$targetDate.html
-    echo "==== ${targetDate} ===="
-    mkdir -p $newsFolder
-    if [ ! -f $newsFolder/$targetDate.html ]; then
-        myCurl $dailyNewsURL | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > $newsFolder/$targetDate.html
-    fi
-    cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g"
-    echo "open in browser? (Y/N) or enter index to download index (1-8)"
+	HtmlFile=$1
+    echo "open in browser? (Y/N) or enter index to download index (1-$(cat ${downloadtemp} | wc -l))"
     read -t 30 input
-    downloadIndexSet=$(echo $input | grep -E "[0-9\ ]+" -o | sed "s/ /\n/g" | sort -u | xargs)
-    isPending=$(echo $input | grep -i -o "p")
-    downloadNumbers=$(echo $downloadIndexSet | wc -w)
-    echo $downloadNumbers
-    if [ $downloadNumbers -ge 1 ]; then
-        for index in $downloadIndexSet ; do
-            downloadId=$(cat $newsFolder/$targetDate.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | grep -E "^[0-9]+" -o | sed -n ${index}p)
-            echo "put $downloadId in $downloadOngoingList"
-            echo $downloadId >> $downloadOngoingList
+    downloadIndexSet=$(echo ${input} | grep -E "[0-9\ ]+" -o | sed "s/ /\n/g" | sort -u | xargs)
+    isPending=$(echo ${input} | grep -i -o "p")
+    downloadNumbers=$(echo ${downloadIndexSet} | wc -w)
+    echo ${downloadNumbers}
+    if [ ${downloadNumbers} -ge 1 ]; then
+        for index in ${downloadIndexSet} ; do
+            downloadId=$(cat ${downloadtemp} | grep -E "^[0-9]+" -o | sed -n ${index}p)
+            echo "put $downloadId in ${downloadOngoingList}"
+            echo ${downloadId} >> ${downloadOngoingList}
         done
-        if [ $isPending == P ] || [ $isPending == p ]; then
+        if [ ${isPending} == 'P' ] || [ ${isPending} == 'p' ]; then
             exit
         fi
-    elif [ $input == Y ] || [ $input == y ]; then
-        start chrome --incognito $newsFolder/$targetDate.html
+    elif [ ${input} == 'Y' ] || [ ${input} == 'y' ]; then
+        start chrome --incognito ${HtmlFile}
         exit
     else
         exit
     fi
-
 }
+
+function downloadDailyNews()
+{
+    targetDate=$(date +%Y-%m-%d -d "$1 days ago")
+    dailyNewsURL=http://18av.mm-cg.com/news/${targetDate}.html
+    echo "==== ${targetDate} ===="
+    mkdir -p ${newsFolder}
+    if [ ! -f ${newsFolder}/${targetDate}.html ]; then
+        myCurl ${dailyNewsURL} | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > ${newsFolder}/${targetDate}.html
+    fi
+    cat ${newsFolder}/${targetDate}.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | tee ${downloadtemp}
+	downloadFromHtmlFile ${newsFolder}/${targetDate}.html
+}
+
+urlencode() {
+  local length="${#1}"
+  for (( i = 0; i < length; i++ )); do
+    local c="${1:i:1}"
+    case $c in
+      [a-zA-Z0-9.~_-]) printf "$c" ;;
+    *) printf "$c" | xxd -p -c1 | while read x;do printf "%%%s" "$x";done
+  esac
+done
+}
+
+function searchVideo() {
+	#mytitle="%E7%89%87%E6%A1%90%E6%83%A0%E7%90%86%E9%A6%99"
+	keyword=$1
+	mkdir -p ${searchFolder}
+	mytitle=$(urlencode $keyword)
+	curl 'http://18av.mm-cg.com/serch/18av_serch.html' \
+	-H 'Connection: keep-alive' \
+	-H 'Pragma: no-cache' \
+	-H 'Cache-Control: no-cache' \
+	-H 'Origin: http://18av.mm-cg.com' \
+	-H 'Upgrade-Insecure-Requests: 1' \
+	-H 'Content-Type: application/x-www-form-urlencoded' \
+	-H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36' \
+	-H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8' \
+	-H 'DNT: 1' -H 'Referer: http://18av.mm-cg.com/serch/18av_serch.html' -H 'Accept-Encoding: gzip, deflate' \
+	-H 'Accept-Language: zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7' \
+	-H 'Cookie: __cfduid=d878535628107d75dc203340e717b8b131527255261; UM_distinctid=1639781fb8414b-0e73473b12dc07-737356c-1fa400-1639781fb8613a; CNZZDATA1273380027=1847662170-1527254675-%7C1527254675; HstCfa3035959=1527255270263; HstCmu3035959=1527255270263; HstCnv3035959=1; _ga=GA1.2.1451192212.1527255270; _gid=GA1.2.920867951.1527255270; CNZZDATA1273435591=817788004-1527250483-%7C1527255884; HstCns3035959=2; _gat_gtag_UA_108436699_2=1; _gat_gtag_UA_108436699_1=1; HstCla3035959=1527256990254; HstPn3035959=11; HstPt3035959=11' \
+	--data "form_serch_category=form_serch_18av&key_myform=$mytitle&my_button=%E6%90%9C%E5%B0%8B&form_page=1&se_id%5B%5D=%E6%9C%AC%E7%AB%99%E7%B2%BE%E9%81%B8%E5%BD%B1%E7%89%87%E5%88%86%E9%A1%9E" \
+	--compressed \
+	grep "$keyword" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a><br>\n/g" | sed "s/<br>/<br>\n/g" | grep "$keyword"  | grep href   | grep -E "jpg" | grep -v "<\/div>" > ${searchFolder}/"${keyword}.html"
+	cat ${searchFolder}/"${keyword}.html" | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | tee ${downloadtemp}
+	downloadFromHtmlFile ${searchFolder}/"${keyword}.html"
+}
+
 
 function show_help()
 {
@@ -251,6 +299,7 @@ function show_help()
     echo -e "-c continue download broken file"
     echo -e "-l show ongoing list"
     echo -e "-d N: get N days ago AV news"
+	echo -e "-s \"keyword\": get video list with search keyword"
     echo -e "----------------------------------------"
     echo -e "Exp 1. Download with whole URL"
     echo -e "${C_YELLOW}$0 http://18av.mm-cg.com/18av/23623.html ...${C_RESET}"
@@ -259,20 +308,22 @@ function show_help()
     echo -e "${C_YELLOW}$0 23623 26437 ... &${C_RESET}"
     echo -e "Exp 3. Keep downloading after logout"
     echo -e "${C_YELLOW}nohup $0 23623 26437 ... &${C_RESET}"
+    echo -e "Exp 4. Search AV Girls"
+    echo -e "${C_YELLOW}$0 -s 香山美櫻${C_RESET}"
     echo -e "========================================"
 }
 
 function preSetting()
 {
     source=$1
-    checkIfDownloading $source || return $ERROR_DOWNLOADING
-    testInput="$(echo $source | grep html)"
+    checkIfDownloading ${source} || return $ERROR_DOWNLOADING
+    testInput="$(echo ${source} | grep html)"
     if [ ! -z $testInput ]; then
         URL=$1
-    elif [[ $source =~ ^-?[0-9]+$ ]] ;then
+    elif [[ ${source} =~ ^-?[0-9]+$ ]] ;then
         URL="http://18av.mm-cg.com/18av/${source}.html"
     else
-        echo "invalid source $source"
+        echo "invalid source ${source}"
         return $ERROR_INVALID_SOURCE
     fi
 
@@ -283,14 +334,14 @@ function preSetting()
     cat $downloadListPattern | awk '{print $1}' | grep $subFolder
     # already download
     if [ $? -eq 0 ]; then
-        if [ "$forceDownload" == 'n' ] && [ ! -d $downloadFolder ]; then
+        if [ "$forceDownload" == 'n' ] && [ ! -d ${downloadFolder} ]; then
             echo "already download $(cat $downloadListPattern | grep $subFolder)"
             return $ERROR_ALREADY_DOWNLOAD
         fi
     fi
-    htmlFile=$metadataFolder/$htmlFileName
-    mkdir -p $metadataFolder
-    mkdir -p $downloadFolder
+    htmlFile=${metadataFolder}/$htmlFileName
+    mkdir -p ${metadataFolder}
+    mkdir -p ${downloadFolder}
 }
 
 function testHtml(){
@@ -301,7 +352,7 @@ function myCurl(){
     if [ "$proxy" == "n" ]; then
         curl $@
     else
-        curl -x $proxy_server $@
+        curl -x ${proxy_server} $@
     fi
 }
 
@@ -321,7 +372,7 @@ function tryProxy(){
 function getWebInfo(){
     error_code=$ERROR_NONE
     if [ ! -f $htmlFile ]; then
-        cd $metadataFolder
+        cd ${metadataFolder}
 
         myCurl $URL -o $htmlFileName
         #test if content usefull info
@@ -365,9 +416,9 @@ function downloadPreviewImages()
     videoPreviewImages=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g"  | sed "s/http:/\nhttp:/g" | sed "s/jpg.*/jpg/g" | grep http | grep jpg | xargs)
     for ImageUrl in $videoPreviewImages; do
         filename=$(echo $ImageUrl | sed "s/.*\///g" )
-        ImageFile=$downloadFolder/$filename
+        ImageFile=${downloadFolder}/$filename
         if [ ! -f "$ImageFile" ]; then
-            cd $downloadFolder
+            cd ${downloadFolder}
             curl -O $ImageUrl > /dev/null 2>&1 &
             sleep 0.5
             cd - > /dev/null
@@ -398,19 +449,19 @@ function truncateString()
     fi
     input="$1"
     limitBytes=$2
-    echo $input | head -c $limitBytes
+    echo ${input} | head -c $limitBytes
 }
 
 function downloadVideoCommand()
 {
-    curl -L -C - $videoUrl -o "$filename_downloading"
+    curl -L -C - $videoUrl -o "${filename_downloading}"
 }
 
 function isStreamDownloadIncomplete()
 {
     if [ ! -z "$(ffprobe -version 2>&1)" ] ; then
-        streamBitRate=$(ffprobe $filename_downloading 2>&1 | grep -E "bitrate:.*kb\/s" -o | sed "s/ kb\/s//g" | sed "s/.* //g")
-        videoTrackBitRate=$(ffprobe $filename_downloading 2>&1 | grep -E "Video.*kb\/s" -o -m1 | sed "s/ kb\/s//g" | sed "s/.* //g")
+        streamBitRate=$(ffprobe ${filename_downloading} 2>&1 | grep -E "bitrate:.*kb\/s" -o | sed "s/ kb\/s//g" | sed "s/.* //g")
+        videoTrackBitRate=$(ffprobe ${filename_downloading} 2>&1 | grep -E "Video.*kb\/s" -o -m1 | sed "s/ kb\/s//g" | sed "s/.* //g")
         if [ $streamBitRate -gt $videoTrackBitRate ]; then
             echo "$filename download completed"
             return 1 #complete
@@ -437,22 +488,22 @@ function downloadVideoUntilComplete()
 function downloadVideo()
 {
     EmbedVideoWenList=$(cat $htmlFile | grep embed | sed "s/http/\nhttp/g" | sed "s/\".*//g" | grep embed | grep youjizz | xargs)
-    echo $EmbedVideoWenList
+    echo ${EmbedVideoWenList}
     declare -i index=0
-    for embedVideoWeb in $EmbedVideoWenList; do
+    for embedVideoWeb in ${EmbedVideoWenList}; do
         index+=1
         adjustTitle=$(truncateString  "$videoTitle" 240)
         filename="$adjustTitle $index.mp4"
         filename_downloading="$index.mp4.download"
-        videoFile=$downloadFolder/$filename
-        videoFile_downloading=$downloadFolder/$filename_downloading
+        videoFile=${downloadFolder}/$filename
+        videoFile_downloading=${downloadFolder}/${filename_downloading}
         echo filename=$filename
-        echo embedVideoWeb=$embedVideoWeb
-        embedMetafileName=$(echo $embedVideoWeb | sed "s/.*\///g" )
-        embedMetafile=$metadataFolder/$embedMetafileName
+        echo embedVideoWeb=${embedVideoWeb}
+        embedMetafileName=$(echo ${embedVideoWeb} | sed "s/.*\///g" )
+        embedMetafile=${metadataFolder}/${embedMetafileName}
         if [ ! -f "$videoFile" ]; then
-            cd $metadataFolder
-            curl $embedVideoWeb -o $embedMetafileName
+            cd ${metadataFolder}
+            curl ${embedVideoWeb} -o ${embedMetafileName}
             cd - > /dev/null
         else
             echo "already download $videoFile"
@@ -465,13 +516,13 @@ function downloadVideo()
         videoUnknown=$(grep mp4 "$embedMetafile" | sed "s/\,/\n/g" | grep filename | grep -v m3u8 | sed "s/\"/\n/g" | grep mp4 | sed "s/\\\//g" | head -1)
 
         if [ ! -z "$videoFHD" ]; then
-            videoUrl=https:$videoFHD
+            videoUrl=https:${videoFHD}
         elif [ ! -z "$videoHD" ]; then
-            videoUrl=https:$videoHD
+            videoUrl=https:${videoHD}
         elif [ ! -z "$videoSD" ]; then
-            videoUrl=https:$videoSD
+            videoUrl=https:${videoSD}
         elif [ ! -z "$videoUnknown" ]; then
-            videoUrl=https:$videoUnknown
+            videoUrl=https:${videoUnknown}
         else
             echo "cann't resolve videoUrl of $filename"
             continue
@@ -479,9 +530,9 @@ function downloadVideo()
 
         echo "$videoFile_downloading"
         if [ -f "$videoFile_downloading" ] || [ ! -f "$videoFile" ] ; then
-            cd $downloadFolder
+            cd ${downloadFolder}
             downloadVideoUntilComplete
-            mv "$filename_downloading" "$filename"
+            mv "${filename_downloading}" "$filename"
             cd - > /dev/null
         else
             echo "already download $filename"
@@ -514,13 +565,13 @@ function unlock()
 trap '{ interruptHandler ; }' INT
 function interruptHandler()
 {
-    if [ -f $downloadGoingList ]; then
-        echo "ID $(cat $downloadGoingList) are downloading"
+    if [ -f ${downloadGoingList} ]; then
+        echo "ID $(cat ${downloadGoingList}) are downloading"
         echo "Do you want to stop? (Y/N)"
         read -t 60 input
-        if [ $input == 'Y' ] || [ $input == 'y' ]; then
-            cat $downloadGoingList >> $downloadOngoingList
-            rm $downloadGoingList
+        if [ ${input} == 'Y' ] || [ ${input} == 'y' ]; then
+            cat ${downloadGoingList} >> ${downloadOngoingList}
+            rm ${downloadGoingList}
             unlock
             exit 0
         fi
