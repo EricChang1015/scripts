@@ -155,6 +155,7 @@ function parseParameters()
                 keyword=$OPTARG
             fi
             searchVideo $keyword
+			exit 0
             ;;
         esac
     done
