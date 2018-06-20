@@ -227,10 +227,10 @@ function downloadFromHtmlFile()
             echo "put $downloadId in ${downloadOngoingList}"
             echo ${downloadId} >> ${downloadOngoingList}
         done
-        if [ ${isPending} == 'P' ] || [ ${isPending} == 'p' ]; then
+        if [ "${isPending}" == 'P' ] || [ "${isPending}" == 'p' ]; then
             exit
         fi
-    elif [ ${input} == 'Y' ] || [ ${input} == 'y' ]; then
+    elif [ "${input}" == 'Y' ] || [ "${input}" == 'y' ]; then
         start chrome --incognito ${HtmlFile}
         exit
     else
@@ -460,16 +460,23 @@ function downloadVideoCommand()
 
 function isStreamDownloadIncomplete()
 {
+	streamBitRate=0
+	videoTrackBitRate=0
+	audioTrackBitRate=0
     if [ ! -z "$(ffprobe -version 2>&1)" ] ; then
-        streamBitRate=$(ffprobe ${filename_downloading} 2>&1 | grep -E "bitrate:.*kb\/s" -o | sed "s/ kb\/s//g" | sed "s/.* //g")
-        videoTrackBitRate=$(ffprobe ${filename_downloading} 2>&1 | grep -E "Video.*kb\/s" -o -m1 | sed "s/ kb\/s//g" | sed "s/.* //g")
-        if [ $streamBitRate -gt $videoTrackBitRate ]; then
-            echo "$filename download completed"
-            return 1 #complete
+        ffprobe $file > $fftemp 2>&1 || return 1
+        streamBitRate=$(cat $fftemp | grep -E "bitrate:.*kb\/s" -o | sed "s/ kb\/s//g" | sed "s/.* //g")
+        videoTrackBitRate=$(cat $fftemp | grep -E "Video.*kb\/s" -o -m1 | sed "s/ kb\/s//g" | sed "s/.* //g")
+        audioTrackBitRate=$(cat $fftemp | grep -E "Audio.*kb\/s" -o -m1  | sed  "s/.*, //g" | sed "s/ kb.*//g")
+        rm $fftemp
+        if [ $streamBitRate -lt $(( $videoTrackBitRate + $audioTrackBitRate )) ]; then
+            return 0 #imcompleted
         fi
     fi
-    return 0 #incomplete
+	return 1 #completed
 }
+
+
 
 function downloadVideoUntilComplete()
 {
