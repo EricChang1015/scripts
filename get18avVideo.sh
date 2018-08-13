@@ -43,6 +43,7 @@ metadataFolder=${downloadTo}/metadata/video
 newsFolder=${downloadTo}/news
 searchFolder=${downloadTo}/search
 lock=${downloadTo}/lock
+fftemp=.fftemp
 
 
 # arg1: index to download
@@ -460,20 +461,29 @@ function downloadVideoCommand()
 
 function isStreamDownloadIncomplete()
 {
-	streamBitRate=0
-	videoTrackBitRate=0
-	audioTrackBitRate=0
+    streamBitRate=0
+    videoTrackBitRate=0
+    audioTrackBitRate=0
+
     if [ ! -z "$(ffprobe -version 2>&1)" ] ; then
-        ffprobe $file > $fftemp 2>&1 || return 1
+OIFS="$IFS"
+IFS=$'\n'
+        ls $videoFile_downloading
+        ffprobe $videoFile_downloading > $fftemp 2>&1 || return 0
         streamBitRate=$(cat $fftemp | grep -E "bitrate:.*kb\/s" -o | sed "s/ kb\/s//g" | sed "s/.* //g")
         videoTrackBitRate=$(cat $fftemp | grep -E "Video.*kb\/s" -o -m1 | sed "s/ kb\/s//g" | sed "s/.* //g")
         audioTrackBitRate=$(cat $fftemp | grep -E "Audio.*kb\/s" -o -m1  | sed  "s/.*, //g" | sed "s/ kb.*//g")
+IFS="$OIFS"
         rm $fftemp
         if [ $streamBitRate -lt $(( $videoTrackBitRate + $audioTrackBitRate )) ]; then
+            echo -en $C_RED[fail] 
+            printf "[s:%5s kb/s : v:%5s kb/s : a:%5s kb/s] " $streamBitRate $videoTrackBitRate $audioTrackBitRate
+            echo -e $C_RESET $videoFile_downloading
+            echo "retry"
             return 0 #imcompleted
         fi
     fi
-	return 1 #completed
+    return 1 #completed
 }
 
 
