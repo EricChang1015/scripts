@@ -37,6 +37,7 @@ ongoingList=ongoingList.${bashScriptName}.txt
 prefix_downloadGoingList=${downloadTo}/${prefix_goingList}
 downloadGoingList=${downloadTo}/${goingList}
 downloadOngoingList=${downloadTo}/${ongoingList}
+downloadOngoingListPattern="${downloadTo}/*goingList.*"
 downloadListPattern="${downloadTo}/list*.csv"
 downloadList=${downloadTo}/list.$(date +%Y%m%d-%H%M).csv
 metadataFolder=${downloadTo}/metadata/video
@@ -109,7 +110,7 @@ function execute()
 #Note: use ":"and "$OPTARG" to argument
 function parseParameters()
 {
-    while getopts "h?vlcpd:s:fd:s:pvlc?h:" opt; do
+    while getopts "h?valcpd:s:fd:s:pvalc?h:" opt; do
         case "$opt" in
         h|\?)
             show_help
@@ -138,8 +139,13 @@ function parseParameters()
                 sed "s/^proxy_server=.*/proxy_server=\"${proxy_server}\"/g" $0 -i
             fi
             ;;
+        a)
+            showActress
+	        exit 0
+            ;;
         l)
             showOngoing
+	        exit 0
             ;;
         c)
             fixBrokenFile
@@ -155,8 +161,8 @@ function parseParameters()
             if [ ! -z $OPTARG ]; then
                 keyword=$OPTARG
             fi
-            searchVideo $keyword
-			exit 0
+                searchVideo $keyword
+                exit 0
             ;;
         esac
     done
@@ -215,7 +221,28 @@ function fixBrokenFile()
 
 function downloadFromHtmlFile()
 {
-	HtmlFile=$1
+    HtmlFile=$1
+    
+    cat ${HtmlFile} | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , ifdownloadorNot , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" > ${downloadtemp}
+    fileListInHtml=$(cat ${downloadtemp} | sed "s/ .*//g")
+    echo -e "Index,\tSerial,     Status,                                              URL , Title"
+    index=1
+    for fileNumber in ${fileListInHtml}; do
+        grep -E "^${fileNumber} " ${downloadListPattern} >> /dev/null
+        if [ $? -eq 0 ]; then
+            state=O
+        else
+            grep -E "^${fileNumber}" ${downloadOngoingListPattern} >> /dev/null
+            if [ $? -eq 0 ]; then
+                state=P
+            else
+                state=-
+            fi
+            
+        fi
+        grep $fileNumber ${downloadtemp} | sed -E "s/ifdownloadorNot/\t${state}/g" | sed -E "s/^/${index},\t/g"
+        index=$(($index+1))
+    done
     echo "open in browser? (Y/N) or enter index to download index (1-$(cat ${downloadtemp} | wc -l))"
     read -t 30 input
     downloadIndexSet=$(echo ${input} | grep -E "[0-9\ ]+" -o | sed "s/ /\n/g" | sort -u | xargs)
@@ -248,8 +275,7 @@ function downloadDailyNews()
     if [ ! -f ${newsFolder}/${targetDate}.html ]; then
         myCurl ${dailyNewsURL} | grep "影片區" | sed "s/<li/\n<li/g" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a>\n/g" > ${newsFolder}/${targetDate}.html
     fi
-    cat ${newsFolder}/${targetDate}.html | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | tee ${downloadtemp}
-	downloadFromHtmlFile ${newsFolder}/${targetDate}.html
+    downloadFromHtmlFile ${newsFolder}/${targetDate}.html
 }
 
 urlencode() {
@@ -264,27 +290,69 @@ done
 }
 
 function searchVideo() {
-	#mytitle="%E7%89%87%E6%A1%90%E6%83%A0%E7%90%86%E9%A6%99"
-	keyword=$1
-	mkdir -p ${searchFolder}
-	mytitle=$(urlencode $keyword)
-	curl 'http://18av.mm-cg.com/serch/18av_serch.html' \
-	-H 'Connection: keep-alive' \
-	-H 'Pragma: no-cache' \
-	-H 'Cache-Control: no-cache' \
-	-H 'Origin: http://18av.mm-cg.com' \
-	-H 'Upgrade-Insecure-Requests: 1' \
-	-H 'Content-Type: application/x-www-form-urlencoded' \
-	-H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36' \
-	-H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8' \
-	-H 'DNT: 1' -H 'Referer: http://18av.mm-cg.com/serch/18av_serch.html' -H 'Accept-Encoding: gzip, deflate' \
-	-H 'Accept-Language: zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7' \
-	-H 'Cookie: __cfduid=d878535628107d75dc203340e717b8b131527255261; UM_distinctid=1639781fb8414b-0e73473b12dc07-737356c-1fa400-1639781fb8613a; CNZZDATA1273380027=1847662170-1527254675-%7C1527254675; HstCfa3035959=1527255270263; HstCmu3035959=1527255270263; HstCnv3035959=1; _ga=GA1.2.1451192212.1527255270; _gid=GA1.2.920867951.1527255270; CNZZDATA1273435591=817788004-1527250483-%7C1527255884; HstCns3035959=2; _gat_gtag_UA_108436699_2=1; _gat_gtag_UA_108436699_1=1; HstCla3035959=1527256990254; HstPn3035959=11; HstPt3035959=11' \
-	--data "form_serch_category=form_serch_18av&key_myform=$mytitle&my_button=%E6%90%9C%E5%B0%8B&form_page=1&se_id%5B%5D=%E6%9C%AC%E7%AB%99%E7%B2%BE%E9%81%B8%E5%BD%B1%E7%89%87%E5%88%86%E9%A1%9E" \
-	--compressed \
-	grep "$keyword" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a><br>\n/g" | sed "s/<br>/<br>\n/g" | grep "$keyword"  | grep href   | grep -E "jpg" | grep -v "<\/div>" > ${searchFolder}/"${keyword}.html"
-	cat ${searchFolder}/"${keyword}.html" | grep "18av.mm-cg.com\/18av" | sed "s/.*\/18av\///g" | sed "s/.html.*src=\"/ , /g" | sed "s/jpg\".*alt=/jpg ,/g" | sed "s/jizcg.*//g" | tee ${downloadtemp}
-	downloadFromHtmlFile ${searchFolder}/"${keyword}.html"
+    #mytitle="%E7%89%87%E6%A1%90%E6%83%A0%E7%90%86%E9%A6%99"
+    keyword=$1
+    mkdir -p ${searchFolder}
+    mytitle=$(urlencode $keyword)
+    curl -s 'http://18av.mm-cg.com/serch/18av_serch.html' \
+    -H 'Connection: keep-alive' \
+    -H 'Pragma: no-cache' \
+    -H 'Cache-Control: no-cache' \
+    -H 'Origin: http://18av.mm-cg.com' \
+    -H 'Upgrade-Insecure-Requests: 1' \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36' \
+    -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8' \
+    -H 'DNT: 1' -H 'Referer: http://18av.mm-cg.com/serch/18av_serch.html' -H 'Accept-Encoding: gzip, deflate' \
+    -H 'Accept-Language: zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7' \
+    -H 'Cookie: __cfduid=d878535628107d75dc203340e717b8b131527255261; UM_distinctid=1639781fb8414b-0e73473b12dc07-737356c-1fa400-1639781fb8613a; CNZZDATA1273380027=1847662170-1527254675-%7C1527254675; HstCfa3035959=1527255270263; HstCmu3035959=1527255270263; HstCnv3035959=1; _ga=GA1.2.1451192212.1527255270; _gid=GA1.2.920867951.1527255270; CNZZDATA1273435591=817788004-1527250483-%7C1527255884; HstCns3035959=2; _gat_gtag_UA_108436699_2=1; _gat_gtag_UA_108436699_1=1; HstCla3035959=1527256990254; HstPn3035959=11; HstPt3035959=11' \
+    --data "form_serch_category=form_serch_18av&key_myform=$mytitle&my_button=%E6%90%9C%E5%B0%8B&form_page=1&se_id%5B%5D=%E6%9C%AC%E7%AB%99%E7%B2%BE%E9%81%B8%E5%BD%B1%E7%89%87%E5%88%86%E9%A1%9E" \
+    --compressed \
+    grep "$keyword" | sed "s/<a class/\n<a class/g" | sed "s/<\/a>/<\/a><br>\n/g" | sed "s/<br>/<br>\n/g" | grep "$keyword"  | grep href   | grep -E "jpg" | grep -v "<\/div>" > ${searchFolder}/"${keyword}.html"
+    downloadFromHtmlFile ${searchFolder}/"${keyword}.html"
+}
+
+
+function showName()
+{
+    declare -i count=0
+    for name in $(cat $avnameZh | awk '{print $2}' | grep -v -E "[A-z]+" | grep $@ | xargs); do
+        num=$(grep "$name" ${downloadListPattern} | wc -l)
+        printf "%3d %s[%2d]\t" $count $name $num
+        if [ $(($count%10+1)) -eq 10 ]; then
+        echo
+        fi
+        count=$count+1
+done < $avnameZh
+ #   done
+    echo -e "\n" 
+}
+
+function showActress()
+{
+    avname=${downloadTo}/.avname
+	avnameZh=${downloadTo}/.avnameZh
+    avnameEng=${downloadTo}/.avnameEng
+    sed -E "s/[ ，、。！＆,.-:&0-9]+/\n/g" ${downloadListPattern} | \
+    grep -v "^.......*" |\
+    grep -v "^$" |\
+    grep -v "^.$" |\
+    grep -v -E "[0-9]|「|…|】|」|？|,|、|。|～|！|\!|\.|\-|BEST|Sex|SEX|THE|高潮|電|肛|亂|癡|の|我|你|他|她|汗|屁|精|夜|編|熱|戰|姊|妹|兄|弟|服|孕|懷|婦|淫|運|動|噴|吹|護|師|主|侵|秘|的|射|態|婆|中文|碼|字|幕|Hot|老|體|禁|妻|母|人|女|姦|乳|中出|性|姐|貌|篇|褲|娘|使|第|祭|不|^......" | \
+    sort | uniq -c | sort -hr  > $avname
+	grep -E "[0-9]+ [A-z]+$" $avname | grep -v -E "AV|NO|ANIMATION" > $avnameEng
+	grep -v -E "[A-z]+" $avname > $avnameZh
+
+    echo "[5 chars]"
+    showName '^.....$'
+    echo "[4 chars]"
+    showName '^....$'
+    echo "[3 chars]"
+    showName '^...$'
+    echo "[2 chars]"
+    showName '^..$'
+    echo "[English chars]"
+    cat $avnameEng | awk '{print $2}' | xargs
+    rm $avname $avnameZh $avnameEng
 }
 
 
@@ -301,7 +369,8 @@ function show_help()
     echo -e "-c continue download broken file"
     echo -e "-l show ongoing list"
     echo -e "-d N: get N days ago AV news"
-	echo -e "-s \"keyword\": get video list with search keyword"
+    echo -e "-s \"keyword\": get video list with search keyword"
+    echo -e "-a show all actresses in list"
     echo -e "----------------------------------------"
     echo -e "Exp 1. Download with whole URL"
     echo -e "${C_YELLOW}$0 http://18av.mm-cg.com/18av/23623.html ...${C_RESET}"
@@ -352,9 +421,9 @@ function testHtml(){
 
 function myCurl(){
     if [ "$proxy" == "n" ]; then
-        curl $@
+        curl -s $@
     else
-        curl -x ${proxy_server} $@
+        curl -s -x ${proxy_server} $@
     fi
 }
 
@@ -415,8 +484,9 @@ function getVideoTitle()
 
 function downloadPreviewImages()
 {
-    videoPreviewImages=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g"  | sed "s/http:/\nhttp:/g" | sed "s/jpg.*/jpg/g" | grep http | grep jpg | xargs)
-    for ImageUrl in $videoPreviewImages; do
+    #videoPreviewImages=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g"  | sed "s/http:/\nhttp:/g" | sed "s/jpg.*/jpg/g" | grep http | grep jpg | xargs)
+    coverPhoto=$(cat $htmlFile | grep "影片名稱" | sed "s/<br>/\n/g"  | sed "s/http:/\nhttp:/g" | sed "s/jpg.*/jpg/g" | grep http | grep jpg  | grep -v "\-..jpg" | xargs)
+    for ImageUrl in $coverPhoto; do
         filename=$(echo $ImageUrl | sed "s/.*\///g" )
         ImageFile=${downloadFolder}/$filename
         if [ ! -f "$ImageFile" ]; then
@@ -497,7 +567,7 @@ function downloadVideoUntilComplete()
     fi
     for ((retry=1;retry<=$maxRetry; retry++)); do
         isStreamDownloadIncomplete || return;
-        sleep 5
+        sleep 60
         echo "$filename retry $retry time"
         downloadVideoCommand
     done
